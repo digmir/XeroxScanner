@@ -19,7 +19,7 @@ function scan( param )
 	local host = param.host;
 	local port = param.port or 54921;
 	local c = socket.tcp();
-	c:settimeout( 6 );
+	c:settimeout( 60 );
 	c:connect( host , port );
 	
 	local dpi = param.dpi or 300;
@@ -46,7 +46,12 @@ function scan( param )
 			data = data..k.."="..v..LF;
 		end
 		data = data .. IEND;
-		assert(sock:send(data));
+		
+		local res,status = sock:send(data);
+		if res == nil then
+			print(status);
+			return false;
+		end
 		
 		if not read_head then
 			read_head = true;
@@ -205,11 +210,13 @@ function scan( param )
 	
 	local res = scanner_req( c , "I" , conf );
 	if not res then
+		c:close();
 		return 1;
 	end
 	
 	local info = scanner_recv_info( c );
 	if info == nil then
+		c:close();
 		return 1;
 	end
 	
@@ -235,6 +242,7 @@ function scan( param )
 		G=0 ,
 	});
 	if not res then
+		c:close();
 		return 1;
 	end
 	

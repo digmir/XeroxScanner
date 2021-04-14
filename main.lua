@@ -20,7 +20,6 @@ require "scanner";
 
 local img = nil;
 local imgcount = 0;
-local timer_scan_end = iup.timer{ time = 100 };
 local thead_busy = false;
 
 local device_ip = iup.text{ expand = "HORIZONTAL" , id = "device_ip" , value = "192.168.1.100" };
@@ -33,6 +32,12 @@ local color = iup.list{ "COLOR" , "GRAY" ; value="1" , dropdown = "YES" , visibl
 local progs = iup.progressbar{ max = 100 , min = 0 , expand = "HORIZONTAL" , rastersize = "x1" };
 local cs = iup.canvas{};
 local csscrl = iup.scrollbox{ cs ; border = "YES" };
+
+local WINDOWS = false;
+local ENV_OS = os.getenv("OS");
+if ENV_OS ~= nil and string.find( ENV_OS , "Windows" , 1 , true ) ~= nil then
+    WINDOWS = true;
+end
 
 local inputctl = iup.vbox({
     iup.label{ title = "Device:" } ,
@@ -87,19 +92,24 @@ function cs:action()
     cs:DrawEnd();
 end
 
-function timer_scan_end:action_cb()
-    thead_busy = false;
-    inputctl.active = "YES";
-    timer_scan_end.run = "NO";
-    if imgcount > 0 then
-        btn_save.active = "YES";
-    end
-    
-    img = iup.LoadImage( "tmp/scan1.jpg" );
-    if img ~= nil then
-        cs.rastersize = img.width.."x"..img.height;
-        iup.Redraw( cs , 0 );
-        iup.Redraw( csscrl , 0 );
+function dlg:postmessage_cb( s , i , d , p )
+    if s == "jobend" then
+        if i ~= 0 then
+            iup.Message( "Error" , "Scan failed!" );
+        end
+        
+        thead_busy = false;
+        inputctl.active = "YES";
+        if imgcount > 0 then
+            btn_save.active = "YES";
+        end
+        
+        img = iup.LoadImage( "tmp/scan1.jpg" );
+        if img ~= nil then
+            cs.rastersize = img.width.."x"..img.height;
+            iup.Redraw( cs , 0 );
+            iup.Redraw( csscrl , 0 );
+        end
     end
     return iup.DEFAULT;
 end
@@ -114,7 +124,11 @@ function btn_scan:action()
     btn_save.active = "NO";
     img = nil;
     imgcount = 0;
-    os.execute("rm -rf ./tmp/");
+    if WINDOWS then
+        os.execute("del /F /S /Q .\\tmp\\");
+    else
+        os.execute("rm -rf ./tmp/");
+    end
     lfs.mkdir( "tmp" );
     
     local scn_thd = iup.thread{};
@@ -133,11 +147,11 @@ function btn_scan:action()
         };
         
         local r1,r2 = pcall( scan , param );
-        if not r1 then
+        if not r1 or r1 ~= 0 then
             print(r2);
         end
         
-        timer_scan_end.run = "YES";
+        iup.PostMessage( dlg , "jobend" , r2 , 0 , nil );
         return iup.DEFAULT;
     end
     
